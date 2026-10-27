@@ -1,276 +1,194 @@
-'use strict';
+export { parseAst, parseAstAsync } from 'rollup/parseAst';
+import { a as arraify, i as isInNodeModules, D as DevEnvironment } from './chunks/dep-CkSfqg8D.js';
+export { B as BuildEnvironment, f as build, m as buildErrorMessage, g as createBuilder, F as createFilter, h as createIdResolver, I as createLogger, n as createRunnableDevEnvironment, c as createServer, y as createServerHotChannel, w as createServerModuleRunner, x as createServerModuleRunnerTransport, d as defineConfig, v as fetchModule, j as formatPostcssSourceMap, L as isFileLoadingAllowed, K as isFileServingAllowed, q as isRunnableDevEnvironment, l as loadConfigFromFile, M as loadEnv, E as mergeAlias, C as mergeConfig, z as moduleRunnerTransform, A as normalizePath, o as optimizeDeps, p as perEnvironmentPlugin, b as perEnvironmentState, k as preprocessCSS, e as preview, r as resolveConfig, N as resolveEnvPrefix, G as rollupVersion, u as runnerImport, J as searchForWorkspaceRoot, H as send, s as sortUserPlugins, t as transformWithEsbuild } from './chunks/dep-CkSfqg8D.js';
+export { defaultAllowedOrigins, DEFAULT_CLIENT_CONDITIONS as defaultClientConditions, DEFAULT_CLIENT_MAIN_FIELDS as defaultClientMainFields, DEFAULT_SERVER_CONDITIONS as defaultServerConditions, DEFAULT_SERVER_MAIN_FIELDS as defaultServerMainFields, VERSION as version } from './constants.js';
+export { version as esbuildVersion } from 'esbuild';
+import 'node:fs';
+import 'node:path';
+import 'node:fs/promises';
+import 'node:url';
+import 'node:util';
+import 'node:perf_hooks';
+import 'node:module';
+import 'node:crypto';
+import 'picomatch';
+import 'path';
+import 'fs';
+import 'fdir';
+import 'node:child_process';
+import 'node:http';
+import 'node:https';
+import 'tty';
+import 'util';
+import 'net';
+import 'events';
+import 'url';
+import 'http';
+import 'stream';
+import 'os';
+import 'child_process';
+import 'node:os';
+import 'node:net';
+import 'node:dns';
+import 'vite/module-runner';
+import 'node:buffer';
+import 'module';
+import 'node:readline';
+import 'node:process';
+import 'node:events';
+import 'tinyglobby';
+import 'crypto';
+import 'node:assert';
+import 'node:v8';
+import 'node:worker_threads';
+import 'https';
+import 'tls';
+import 'zlib';
+import 'buffer';
+import 'assert';
+import 'node:querystring';
+import 'node:zlib';
 
-class QuickLRU {
-	constructor(options = {}) {
-		if (!(options.maxSize && options.maxSize > 0)) {
-			throw new TypeError('`maxSize` must be a number greater than 0');
-		}
-
-		if (typeof options.maxAge === 'number' && options.maxAge === 0) {
-			throw new TypeError('`maxAge` must be a number greater than 0');
-		}
-
-		this.maxSize = options.maxSize;
-		this.maxAge = options.maxAge || Infinity;
-		this.onEviction = options.onEviction;
-		this.cache = new Map();
-		this.oldCache = new Map();
-		this._size = 0;
-	}
-
-	_emitEvictions(cache) {
-		if (typeof this.onEviction !== 'function') {
-			return;
-		}
-
-		for (const [key, item] of cache) {
-			this.onEviction(key, item.value);
-		}
-	}
-
-	_deleteIfExpired(key, item) {
-		if (typeof item.expiry === 'number' && item.expiry <= Date.now()) {
-			if (typeof this.onEviction === 'function') {
-				this.onEviction(key, item.value);
-			}
-
-			return this.delete(key);
-		}
-
-		return false;
-	}
-
-	_getOrDeleteIfExpired(key, item) {
-		const deleted = this._deleteIfExpired(key, item);
-		if (deleted === false) {
-			return item.value;
-		}
-	}
-
-	_getItemValue(key, item) {
-		return item.expiry ? this._getOrDeleteIfExpired(key, item) : item.value;
-	}
-
-	_peek(key, cache) {
-		const item = cache.get(key);
-
-		return this._getItemValue(key, item);
-	}
-
-	_set(key, value) {
-		this.cache.set(key, value);
-		this._size++;
-
-		if (this._size >= this.maxSize) {
-			this._size = 0;
-			this._emitEvictions(this.oldCache);
-			this.oldCache = this.cache;
-			this.cache = new Map();
-		}
-	}
-
-	_moveToRecent(key, item) {
-		this.oldCache.delete(key);
-		this._set(key, item);
-	}
-
-	* _entriesAscending() {
-		for (const item of this.oldCache) {
-			const [key, value] = item;
-			if (!this.cache.has(key)) {
-				const deleted = this._deleteIfExpired(key, value);
-				if (deleted === false) {
-					yield item;
-				}
-			}
-		}
-
-		for (const item of this.cache) {
-			const [key, value] = item;
-			const deleted = this._deleteIfExpired(key, value);
-			if (deleted === false) {
-				yield item;
-			}
-		}
-	}
-
-	get(key) {
-		if (this.cache.has(key)) {
-			const item = this.cache.get(key);
-
-			return this._getItemValue(key, item);
-		}
-
-		if (this.oldCache.has(key)) {
-			const item = this.oldCache.get(key);
-			if (this._deleteIfExpired(key, item) === false) {
-				this._moveToRecent(key, item);
-				return item.value;
-			}
-		}
-	}
-
-	set(key, value, {maxAge = this.maxAge} = {}) {
-		const expiry =
-			typeof maxAge === 'number' && maxAge !== Infinity ?
-				Date.now() + maxAge :
-				undefined;
-		if (this.cache.has(key)) {
-			this.cache.set(key, {
-				value,
-				expiry
-			});
-		} else {
-			this._set(key, {value, expiry});
-		}
-
-		return this;
-	}
-
-	has(key) {
-		if (this.cache.has(key)) {
-			return !this._deleteIfExpired(key, this.cache.get(key));
-		}
-
-		if (this.oldCache.has(key)) {
-			return !this._deleteIfExpired(key, this.oldCache.get(key));
-		}
-
-		return false;
-	}
-
-	peek(key) {
-		if (this.cache.has(key)) {
-			return this._peek(key, this.cache);
-		}
-
-		if (this.oldCache.has(key)) {
-			return this._peek(key, this.oldCache);
-		}
-	}
-
-	expiresIn(key) {
-		const item = this.cache.get(key) || this.oldCache.get(key);
-		if (item) {
-			return item.expiry ? item.expiry - Date.now() : Infinity;
-		}
-	}
-
-	delete(key) {
-		const deleted = this.cache.delete(key);
-		if (deleted) {
-			this._size--;
-		}
-
-		return this.oldCache.delete(key) || deleted;
-	}
-
-	clear() {
-		this.cache.clear();
-		this.oldCache.clear();
-		this._size = 0;
-	}
-	
-	resize(newSize) {
-		if (!(newSize && newSize > 0)) {
-			throw new TypeError('`maxSize` must be a number greater than 0');
-		}
-
-		const items = [...this._entriesAscending()];
-		const removeCount = items.length - newSize;
-		if (removeCount < 0) {
-			this.cache = new Map(items);
-			this.oldCache = new Map();
-			this._size = items.length;
-		} else {
-			if (removeCount > 0) {
-				this._emitEvictions(items.slice(0, removeCount));
-			}
-
-			this.oldCache = new Map(items.slice(removeCount));
-			this.cache = new Map();
-			this._size = 0;
-		}
-
-		this.maxSize = newSize;
-	}
-
-	* keys() {
-		for (const [key] of this) {
-			yield key;
-		}
-	}
-
-	* values() {
-		for (const [, value] of this) {
-			yield value;
-		}
-	}
-
-	* [Symbol.iterator]() {
-		for (const item of this.cache) {
-			const [key, value] = item;
-			const deleted = this._deleteIfExpired(key, value);
-			if (deleted === false) {
-				yield [key, value.value];
-			}
-		}
-
-		for (const item of this.oldCache) {
-			const [key, value] = item;
-			if (!this.cache.has(key)) {
-				const deleted = this._deleteIfExpired(key, value);
-				if (deleted === false) {
-					yield [key, value.value];
-				}
-			}
-		}
-	}
-
-	* entriesDescending() {
-		let items = [...this.cache];
-		for (let i = items.length - 1; i >= 0; --i) {
-			const item = items[i];
-			const [key, value] = item;
-			const deleted = this._deleteIfExpired(key, value);
-			if (deleted === false) {
-				yield [key, value.value];
-			}
-		}
-
-		items = [...this.oldCache];
-		for (let i = items.length - 1; i >= 0; --i) {
-			const item = items[i];
-			const [key, value] = item;
-			if (!this.cache.has(key)) {
-				const deleted = this._deleteIfExpired(key, value);
-				if (deleted === false) {
-					yield [key, value.value];
-				}
-			}
-		}
-	}
-
-	* entriesAscending() {
-		for (const [key, value] of this._entriesAscending()) {
-			yield [key, value.value];
-		}
-	}
-
-	get size() {
-		if (!this._size) {
-			return this.oldCache.size;
-		}
-
-		let oldCacheSize = 0;
-		for (const key of this.oldCache.keys()) {
-			if (!this.cache.has(key)) {
-				oldCacheSize++;
-			}
-		}
-
-		return Math.min(this._size + oldCacheSize, this.maxSize);
-	}
+const CSS_LANGS_RE = (
+  // eslint-disable-next-line regexp/no-unused-capturing-group
+  /\.(css|less|sass|scss|styl|stylus|pcss|postcss|sss)(?:$|\?)/
+);
+const isCSSRequest = (request) => CSS_LANGS_RE.test(request);
+class SplitVendorChunkCache {
+  cache;
+  constructor() {
+    this.cache = /* @__PURE__ */ new Map();
+  }
+  reset() {
+    this.cache = /* @__PURE__ */ new Map();
+  }
+}
+function splitVendorChunk(options = {}) {
+  const cache = options.cache ?? new SplitVendorChunkCache();
+  return (id, { getModuleInfo }) => {
+    if (isInNodeModules(id) && !isCSSRequest(id) && staticImportedByEntry(id, getModuleInfo, cache.cache)) {
+      return "vendor";
+    }
+  };
+}
+function staticImportedByEntry(id, getModuleInfo, cache, importStack = []) {
+  if (cache.has(id)) {
+    return cache.get(id);
+  }
+  if (importStack.includes(id)) {
+    cache.set(id, false);
+    return false;
+  }
+  const mod = getModuleInfo(id);
+  if (!mod) {
+    cache.set(id, false);
+    return false;
+  }
+  if (mod.isEntry) {
+    cache.set(id, true);
+    return true;
+  }
+  const someImporterIs = mod.importers.some(
+    (importer) => staticImportedByEntry(
+      importer,
+      getModuleInfo,
+      cache,
+      importStack.concat(id)
+    )
+  );
+  cache.set(id, someImporterIs);
+  return someImporterIs;
+}
+function splitVendorChunkPlugin() {
+  const caches = [];
+  function createSplitVendorChunk(output, config) {
+    const cache = new SplitVendorChunkCache();
+    caches.push(cache);
+    const build = config.build ?? {};
+    const format = output.format;
+    if (!build.ssr && !build.lib && format !== "umd" && format !== "iife") {
+      return splitVendorChunk({ cache });
+    }
+  }
+  return {
+    name: "vite:split-vendor-chunk",
+    config(config) {
+      let outputs = config.build?.rollupOptions?.output;
+      if (outputs) {
+        outputs = arraify(outputs);
+        for (const output of outputs) {
+          const viteManualChunks = createSplitVendorChunk(output, config);
+          if (viteManualChunks) {
+            if (output.manualChunks) {
+              if (typeof output.manualChunks === "function") {
+                const userManualChunks = output.manualChunks;
+                output.manualChunks = (id, api) => {
+                  return userManualChunks(id, api) ?? viteManualChunks(id, api);
+                };
+              } else {
+                console.warn(
+                  "(!) the `splitVendorChunk` plugin doesn't have any effect when using the object form of `build.rollupOptions.output.manualChunks`. Consider using the function form instead."
+                );
+              }
+            } else {
+              output.manualChunks = viteManualChunks;
+            }
+          }
+        }
+      } else {
+        return {
+          build: {
+            rollupOptions: {
+              output: {
+                manualChunks: createSplitVendorChunk({}, config)
+              }
+            }
+          }
+        };
+      }
+    },
+    buildStart() {
+      caches.forEach((cache) => cache.reset());
+    }
+  };
 }
 
-module.exports = QuickLRU;
+function createFetchableDevEnvironment(name, config, context) {
+  if (typeof Request === "undefined" || typeof Response === "undefined") {
+    throw new TypeError(
+      "FetchableDevEnvironment requires a global `Request` and `Response` object."
+    );
+  }
+  if (!context.handleRequest) {
+    throw new TypeError(
+      "FetchableDevEnvironment requires a `handleRequest` method during initialisation."
+    );
+  }
+  return new FetchableDevEnvironment(name, config, context);
+}
+function isFetchableDevEnvironment(environment) {
+  return environment instanceof FetchableDevEnvironment;
+}
+class FetchableDevEnvironment extends DevEnvironment {
+  _handleRequest;
+  constructor(name, config, context) {
+    super(name, config, context);
+    this._handleRequest = context.handleRequest;
+  }
+  async dispatchFetch(request) {
+    if (!(request instanceof Request)) {
+      throw new TypeError(
+        "FetchableDevEnvironment `dispatchFetch` must receive a `Request` object."
+      );
+    }
+    const response = await this._handleRequest(request);
+    if (!(response instanceof Response)) {
+      throw new TypeError(
+        "FetchableDevEnvironment `context.handleRequest` must return a `Response` object."
+      );
+    }
+    return response;
+  }
+}
+
+export { DevEnvironment, createFetchableDevEnvironment, isCSSRequest, isFetchableDevEnvironment, splitVendorChunk, splitVendorChunkPlugin };
